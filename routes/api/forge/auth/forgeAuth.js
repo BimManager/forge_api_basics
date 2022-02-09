@@ -30,10 +30,10 @@ function forgeAuth() {
         setTimeout(function() {
           _token = null
         }, (_token.expires_in - 60) * 1000);
-        return Promise.resolve(_token);
+        return _token;
       })
       .catch(function(err) {
-        return Promise.resolve(err);
+        return err;
       });
   }
   return {

@@ -5,7 +5,7 @@ const fetch = (...args) => import('node-fetch')
 
 describe("Authentication API", function() {
   describe('GET /api/forge/auth/token', function() {
-    it ('returns a token { access_token, expires_in }', function() {
+    it ('should return a token { access_token, expires_in }', function() {
       return new Promise(function(resolve, reject) {
         fetch('http://localhost:3000/api/forge/auth/token')
           .then(function(response) {
