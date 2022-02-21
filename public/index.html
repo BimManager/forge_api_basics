@@ -11,6 +11,11 @@
     
     <script src="https://developer.api.autodesk.com/modelderivative/v2/viewers/7.*/viewer3D.min.js"></script>
 
+    <script>
+      self._typeface_js = { faces: THREE.FontUtils.faces, loadFace: THREE.FontUtils.loadFace };
+    </script>
+    <script src="arialRegular.js"></script>
+
     <style>
       body {
           margin: 0;
@@ -31,8 +36,11 @@
     var viewer;
     // INITIALIZATION
     let options = {
-      env: 'AutodeskProduction2',
-      api: 'streamingV2',
+      api: 'derivativeV2',
+      env: 'AutodeskProduction',
+      memory: {
+        limit: 5000
+      },
       getAccessToken: function(onTokenReady) {
         fetch('http://localhost:3000/api/forge/auth/token')
           .then(function(response) {
@@ -49,36 +57,77 @@
 
     Autodesk.Viewing.Initializer(options, function() {
       let htmlDiv = document.getElementById('forgeViewer');
-      viewer = new Autodesk.Viewing.GuiViewer3D(htmlDiv);
+      viewer = new Autodesk.Viewing.GuiViewer3D(htmlDiv);      
       let status = viewer.start();
       if (status > 0) {
         console.error('Failed to initialise the Viewer: WebGL not supported.');
       } else {
         console.info('Initialization has completed successfully.');
+        viewer.addEventListener(Autodesk.Viewing.GEOMETRY_LOADED_EVENT, onModelLoaded);
       }
     });
 
 
     // LOADING A MODEL
-    const modelUrn = 'urn:dXJuOmFkc2sub2JqZWN0czpvcy5vYmplY3Q6Zm9obGlvX3Jldml0X21vZGVscy9yYWNfYmFzaWNfc2FtcGxlX3Byb2plY3QucnZ0';
-    Autodesk.Viewing.Document.load(
-      modelUrn,onDocumentLoadSuccess, onDocumentLoadFailure);
+    //const modelUrn = 'urn:dXJuOmFkc2sub2JqZWN0czpvcy5vYmplY3Q6Zm9obGlvX3Jldml0X21vZGVscy9yYWNfYmFzaWNfc2FtcGxlX3Byb2plY3QucnZ0';
+    const urn = 'dXJuOmFkc2sub2JqZWN0czpvcy5vYmplY3Q6Zm9obGlvX3Jldml0X21vZGVscy9yYWNfYWR2YW5jZWRfc2FtcGxlX3Byb2plY3QucnZ0'
+    const modelUrn = 'urn:dXJuOmFkc2sub2JqZWN0czpvcy5vYmplY3Q6Zm9obGlvX3Jldml0X21vZGVscy9yYWNfYWR2YW5jZWRfc2FtcGxlX3Byb2plY3QucnZ0'
+    let doc;
+    let dataVizExt;
+    fetch('http://localhost:3000/api/forge/modelderivative/' + urn + '/manifest')
+  .then((res) => {
+    res.json().then((body) => {
+      doc = new Autodesk.Viewing.Document(body, modelUrn);
+      const manifestNodes = doc.getRoot().search({
+        type: 'geometry', role: '3d', isMasterView: true });
+      if (manifestNodes.length > 0) {
+        viewer.loadDocumentNode(doc, manifestNodes[0]);
+        viewer.loadExtension('Autodesk.DataVisualization')
+          .then((dataViz) => {
+            dataVizExt = dataViz;
+          });
+      }
+    });
+  });
+    
+/*    Autodesk.Viewing.Document.load(
+      modelUrn, onDocumentLoadSuccess, onDocumentLoadFailure);
 
     function onDocumentLoadSuccess(doc) {
-      let defaultModel = doc.getRoot().getDefaultGeometry();
+      const bubbleNodeRoot = doc.getRoot();
+      const views = bubbleNodeRoot.getNamedViews();      
+      //let defaultModel = doc.getRoot().getDefaultGeometry();
+      const defaultModel = views[1].parent;
       viewer.loadExtension('Autodesk.DocumentBrowser');
+      doc.downloadAecModelData();
       viewer.loadDocumentNode(doc, defaultModel);
     }
 
     function onDocumentLoadFailure() {
       console.error('Failure loading a model...');
+      }*/
+
+    // event.model
+    async function onModelLoaded(event) {
+      const viewer = event.target;
+      const dataVizExt = await viewer.loadExtension('Autodesk.DataVisualization');
+      const modelInfo = new Autodesk.DataVisualization
+            .Core.ModelStructureInfo(event.model);
+      const devices = await createDevices(modelInfo);
+      console.log(devices);
+      const viewableData = new Autodesk.DataVisualization.Core.ViewableData();
+      viewableData.spriteSize = 16;
+      const sprites = createSprites(devices);
+      sprites.forEach((sprite) => viewableData.addViewable(sprite));
+      await viewableData.finish();
+      dataVizExt.addViewables(viewableData);
+      await createHeatmap(event.model, modelInfo, devices);
     }
 
     function findAllInstancesByTypeUniqueId(propertyDb, uniqueId) {
-      function userFunction(pdb) {
+      function userFunction(pdb, uniqueId) {
         const externalIdDbId = pdb.getExternalIdMapping();
-        const dbId = externalIdDbId['705e25a1-127e-4d76-b5f5-4e766ef073a3-000f1bef'];
-        console.log(dbId);
+        const dbId = externalIdDbId[uniqueId];
         const dbIds = [];
         if (dbId) {
           const item  = pdb.getObjectProperties(dbId);
@@ -88,15 +137,80 @@
         }
         return dbIds;
       }
-      let promise = propertyDb.executeUserFunction(userFunction);
+      let promise = propertyDb.executeUserFunction(userFunction, uniqueId);
       promise.then(function(dbIds) {
-        console.log(dbIds);
         viewer.isolate(dbIds);
         viewer.fitToView(dbIds);
       })
         .catch(function(error) {
           console.error(error);
         });
+    }
+
+    
+    function _getSensorValue(surfaceShadingPoint, sensorType) {
+      const deviceId = surfaceShadingPoint.id;
+      let sensorValue = readSensorValue(deviceId, sensorType);
+      const maxSensorValue = getMaxSensorValue(sensorType);
+      const minSensorValue = getMinSensorValue(sensorType);
+      sensorValue = (sensorValue - minSensorValue) /
+        (maxSensorValue - sensorValue);
+      return clamp(sensorValue, 0.0, 1.0);
+    }
+
+    function createDevices(modelInfo) {
+      return new Promise((resolve, reject) => {
+        modelInfo.getRoomList()
+          .then((rooms) => {
+            const devices = [];
+            rooms.forEach((room) => {
+              const centroid = room.bounds.getCenter();
+              devices.push({
+                id: room.name, 
+                roomId: room.id,
+                position: { x: centroid.x, y: centroid.y, z: centroid.z },
+                sensorTypes: ['temperature', 'humidity'],
+                type: 'combo'
+              });
+            });
+            resolve(devices);
+          });
+      });
+    }
+
+    function createSprites(devices) {
+      const sprites = [];
+      let id = 1;
+      devices.forEach((device) => {
+        sprites.push(
+          new Autodesk.DataVisualization.Core.SpriteViewable(
+            device.position,
+            new Autodesk.DataVisualization.Core.ViewableStyle(
+              Autodesk.DataVisualization.Core.ViewableType.SPRITE,
+              new THREE.Color(0xffffff),
+              'https://d2zqnmauvnpnnm.cloudfront.net/assets-1/images/thermometer.svg'
+            ),
+            id++)
+        );
+      });
+      return sprites;
+    }
+
+    async function createHeatmap(model, modelInfo, devices) {
+      const heatmapData = await modelInfo.generateSurfaceShadingData(devices);
+      await dataVizExt.setupSurfaceShading(model, heatmapData);
+      dataVizExt.registerSurfaceShadingColors(
+        'temperature', [0xff0000, 0x00ff00, 0x00000ff]);
+      function getSensorValue(device, sensorType) {
+        return Math.random();
+      }
+      const levelRooms = await modelInfo.getLevelRoomsMap();
+      dataVizExt.renderSurfaceShading(
+          Object.keys(levelRooms), 'temperature', getSensorValue);
+      viewer.isolate(devices.map((device) => device.roomId));
+      setInterval(() => {
+        dataVizExt.updateSurfaceShading(getSensorValue);
+      }, 2000);
     }
   </script>
 </html>

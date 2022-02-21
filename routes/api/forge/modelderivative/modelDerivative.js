@@ -25,8 +25,13 @@ router.post('/job', function(req, res) {
     method: 'POST',
   });
   Object.assign(options.headers, {
-    'Content-Type': 'application/json'
-  })
+    'Content-Type': 'application/json'    
+  });
+  if (req.get('x-ads-force')) {
+    Object.assign(options.headers, {
+      'x-ads-force': req.get('x-ads-force')
+    });
+  }
   httpClient.makeHttpRequest(options, JSON.stringify({
     input: {
       urn: Buffer.from(req.body["urn"]).toString('base64')
