@@ -35,8 +35,8 @@ function _makeHttpRequest(options, body = null) {
 }
 
 function _sendResponseBasedOnIncomingMessage(response, incomingMessage) {
-  console.log('Content-Type: ' + (incomingMessage.headers["content-type"]
-                                  || 'application/octet-stream'));
+//  console.log('Content-Type: ' + (incomingMessage.headers["content-type"]
+  //                                || 'application/octet-stream'));
   response.statusCode = incomingMessage.statusCode;
   response.set('Content-Type', incomingMessage.headers["content-type"]
                || 'application/octet-stream');
