@@ -78,10 +78,12 @@
   .then((res) => {
     res.json().then((body) => {
       doc = new Autodesk.Viewing.Document(body, modelUrn);
+      doc.downloadAecModelData();
       const manifestNodes = doc.getRoot().search({
         type: 'geometry', role: '3d', isMasterView: true });
       if (manifestNodes.length > 0) {
         viewer.loadDocumentNode(doc, manifestNodes[0]);
+        viewer.loadExtension('Autodesk.DocumentBrowser');
         viewer.loadExtension('Autodesk.DataVisualization')
           .then((dataViz) => {
             dataVizExt = dataViz;
@@ -110,18 +112,7 @@
     // event.model
     async function onModelLoaded(event) {
       const viewer = event.target;
-      const dataVizExt = await viewer.loadExtension('Autodesk.DataVisualization');
-      const modelInfo = new Autodesk.DataVisualization
-            .Core.ModelStructureInfo(event.model);
-      const devices = await createDevices(modelInfo);
-      console.log(devices);
-      const viewableData = new Autodesk.DataVisualization.Core.ViewableData();
-      viewableData.spriteSize = 16;
-      const sprites = createSprites(devices);
-      sprites.forEach((sprite) => viewableData.addViewable(sprite));
-      await viewableData.finish();
-      dataVizExt.addViewables(viewableData);
-      await createHeatmap(event.model, modelInfo, devices);
+      //visualizeRooms(viewer);
     }
 
     function findAllInstancesByTypeUniqueId(propertyDb, uniqueId) {
@@ -147,15 +138,18 @@
         });
     }
 
-    
-    function _getSensorValue(surfaceShadingPoint, sensorType) {
-      const deviceId = surfaceShadingPoint.id;
-      let sensorValue = readSensorValue(deviceId, sensorType);
-      const maxSensorValue = getMaxSensorValue(sensorType);
-      const minSensorValue = getMinSensorValue(sensorType);
-      sensorValue = (sensorValue - minSensorValue) /
-        (maxSensorValue - sensorValue);
-      return clamp(sensorValue, 0.0, 1.0);
+    async function visualizeRooms(viewer) {
+      const dataVizExt = await viewer.loadExtension('Autodesk.DataVisualization');
+      const modelInfo = new Autodesk.DataVisualization
+            .Core.ModelStructureInfo(viewer.model);
+      const devices = await createDevices(modelInfo);
+      const viewableData = new Autodesk.DataVisualization.Core.ViewableData();
+      viewableData.spriteSize = 16;
+      const sprites = createSprites(devices);
+      sprites.forEach((sprite) => viewableData.addViewable(sprite));
+      await viewableData.finish();
+      dataVizExt.addViewables(viewableData);
+      await createHeatmap(viewer.model, modelInfo, devices);
     }
 
     function createDevices(modelInfo) {
@@ -199,6 +193,9 @@
     async function createHeatmap(model, modelInfo, devices) {
       const heatmapData = await modelInfo.generateSurfaceShadingData(devices);
       await dataVizExt.setupSurfaceShading(model, heatmapData);
+      /*{
+        type: 'PlanarHeatmap'
+      });*/
       dataVizExt.registerSurfaceShadingColors(
         'temperature', [0xff0000, 0x00ff00, 0x00000ff]);
       function getSensorValue(device, sensorType) {
@@ -207,10 +204,10 @@
       const levelRooms = await modelInfo.getLevelRoomsMap();
       dataVizExt.renderSurfaceShading(
           Object.keys(levelRooms), 'temperature', getSensorValue);
-      /*viewer.isolate(devices.map((device) => device.roomId));
+      viewer.isolate(devices.map((device) => device.roomId));
       setInterval(() => {
         dataVizExt.updateSurfaceShading(getSensorValue);
-      }, 2000);*/
+      }, 2000);
     }
 
     function createMeshForSelection(viewer) {
@@ -258,6 +255,64 @@
         }, true);
       });
       viewer.impl.invalidate(true);
+    }
+
+    function translateSelection(viewer, position) {
+      transformSelection(viewer, { position: position });
+    }
+
+    function transformSelection(viewer, transforms) {
+      function getTransform(fragProxy) {
+        const matrix = new THREE.Matrix4();
+        fragProxy.getWorldMatrix(matrix);
+        fragProxy.position = new THREE.Vector3();
+        fragProxy.quaternion = new THREE.Quaternion();
+        fragProxy.scale = new THREE.Vector3();
+        matrix.decompose(fragProxy.position,
+                         fragProxy.quaternion,
+                         fragProxy.scale);
+      }
+      
+      const tree = viewer.model.getInstanceTree();
+      viewer.getSelection().forEach((dbId) => {
+        tree.enumNodeFragments(dbId, (fragId) => {
+          const fragProxy = viewer.impl.getFragmentProxy(viewer.model, fragId);
+          getTransform(fragProxy);
+          fragProxy.position = transforms.position || fragProxy.position;
+          fragProxy.quaternion = transforms.quaternion || fragProxy.selection;
+          fragProxy.scale = transforms.scale || fragProxy.scale;
+          fragProxy.updateAnimTransform();
+          viewer.impl.sceneUpdated(true);
+        });
+      });
+    }
+
+    function searchModel(model, text) {
+      console.log(text.toUpperCase());
+      const tree = model.getInstanceTree();
+      return new Promise(function(resolve, reject) {
+        const nodes = [];
+        model.search(text, (dbIds) => {
+          dbIds.forEach((dbId) => {
+            console.log(tree.getNodeName(dbId));
+            nodes.push(dbId);
+          });
+          resolve(nodes);
+        }, (error) => {
+          reject(error);
+        });
+      });
+    }
+
+    function traverseAllNodes(viewer) {
+      const tree = viewer.model.getInstanceTree();
+      tree.enumNodeChildren(tree.getRootId(), (nodeId) => {
+        console.log(tree.getNodeName(nodeId));
+        tree.enumNodeFragments(nodeId, (fragId) => {
+          const fragProxy = viewer.impl.getRenderProxy(viewer.model, fragId);
+          console.log(fragProxy);
+        }, true);
+      }, true);
     }
   </script>
 </html>
