@@ -32,14 +32,14 @@ router.post('/job', function(req, res) {
       'x-ads-force': req.get('x-ads-force')
     });
   }
-  httpClient.makeHttpRequest(options, JSON.stringify({
+  httpClient.makeHttpRequest(options, { //JSON.stringify({
     input: {
       urn: Buffer.from(req.body["urn"]).toString('base64')
     },
     output: {
       formats: req.body["formats"]
     }
-  }))
+  })
     .then(function(jobRes) {
       httpClient.sendResponseBasedOnIncomingMessage(res, jobRes);
     })

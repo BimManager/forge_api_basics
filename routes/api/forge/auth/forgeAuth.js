@@ -24,7 +24,8 @@ function forgeAuth() {
         'Content-Type': 'application/x-www-form-urlencoded'
       }
     };
-    return httpClient.makeHttpRequest(options, qs.stringify(credentials))
+    //return httpClient.makeHttpRequest(options, qs.stringify(credentials))
+    return httpClient.makeHttpRequest(options, credentials)
       .then(function(res) {
         _token = JSON.parse(res.body);
         setTimeout(function() {

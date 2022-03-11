@@ -31,7 +31,8 @@ router.route('/buckets')
       'Content-Type': 'application/json',
       'x-ads-region': 'US'
     });
-    httpClient.makeHttpRequest(options, JSON.stringify(req.body))
+    //httpClient.makeHttpRequest(options, JSON.stringify(req.body))
+    httpClient.makeHttpRequest(options, req.body)
       .then(function(bucketsRes) {
         httpClient.sendResponseBasedOnIncomingMessage(res, bucketsRes);
       })

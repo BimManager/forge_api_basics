@@ -21,6 +21,8 @@ const modelRouter = require('./routes/api/forge/modelderivative/modelDerivative'
   }
 }
 
+global.__basedir = __dirname;
+
 const app = express();
 
 app.set('port', process.env.PORT || 3000);
@@ -40,7 +42,7 @@ app.get('/', function(req, res) {
 
 app.use('/api/forge/auth', authRouter);
 app.use('/api/forge/oss', authRouter.authWith2LeggedToken, dataRouter);
-app.use('/api/forge/modelderivative/', authRouter.authWith2LeggedToken, modelRouter);
+app.use('/api/forge/modelderivative', authRouter.authWith2LeggedToken, modelRouter);
 
 app.use(function(req, res, next) {
   const err = new Error('Not Found');

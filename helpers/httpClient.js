@@ -11,6 +11,7 @@
 */
 
 const https = require('https');
+const qs = require('querystring');
 
 function _makeHttpRequest(options, body = null) {
 //  console.log(options);
@@ -29,7 +30,15 @@ function _makeHttpRequest(options, body = null) {
       });
     });
     req.on('error', function(err) { reject(err); });
-    if (body) req.write(body);
+    if (body) {
+      const contentType = options.headers['Content-Type'];
+      if (/.*json.*/.test(contentType)) {
+        body = JSON.stringify(body);
+      } else if (/.*x-www-form-urlencoded.*/.test(contentType)) {
+        body = qs.stringify(body);
+      }
+      req.write(body);
+    }
     req.end();
   });
 }

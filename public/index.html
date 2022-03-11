@@ -128,11 +128,11 @@
         }
         return dbIds;
       }
-      let promise = propertyDb.executeUserFunction(userFunction, uniqueId);
-      promise.then(function(dbIds) {
-        viewer.isolate(dbIds);
-        viewer.fitToView(dbIds);
-      })
+      propertyDb.executeUserFunction(userFunction, uniqueId)
+        .then(function(dbIds) {
+          viewer.isolate(dbIds);
+          viewer.fitToView(dbIds);
+        })
         .catch(function(error) {
           console.error(error);
         });
@@ -288,13 +288,14 @@
     }
 
     function searchModel(model, text) {
-      console.log(text.toUpperCase());
       const tree = model.getInstanceTree();
       return new Promise(function(resolve, reject) {
         const nodes = [];
         model.search(text, (dbIds) => {
           dbIds.forEach((dbId) => {
-            console.log(tree.getNodeName(dbId));
+            model.getProperties(dbId, (props) => {
+              console.log(props);
+            });
             nodes.push(dbId);
           });
           resolve(nodes);

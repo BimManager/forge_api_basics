@@ -1,0 +1,40 @@
+<!document html>
+<html>
+  <head>
+    <title>Three Legged Authorization</title>
+  </head>
+  <body>
+    <h1>Three Legged Authorization</h1>
+    <div>
+      <a href="https://developer.api.autodesk.com/authentication/v1/authorize?response_type=code&client_id=9P51JBScOPK4N9s28R9FgE6RhGNJ358J&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fapi%2Fforge%2Fauth%2Fcallback">Code-based authorization</a>
+    </div>
+    </br>
+    <div>
+      <a href="https://developer.api.autodesk.com/authentication/v1/authorize?response_type=token&client_id=9P51JBScOPK4N9s28R9FgE6RhGNJ358J&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fapi%2Fforge%2Fauth%2Fcallback&scope=data:read">Token-based authorization</a>
+    </div>
+    <script>
+      function extractToken(queryString) {
+        const pattern = /([^&=]+)=([^&]*)/g;
+        const token = Object.create(null);
+        let match;        
+        while ((match = pattern.exec(queryString))) {
+          token[match[1]] = match[2];
+        }
+        return token;
+      }
+      console.log(location.hash);
+      const token = extractToken(location.hash.substring(1));
+      fetch('http://localhost:3000/api/forge/auth/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(token)
+      }).then(function(response) {
+        console.log(response.status);
+      }).catch((error) => {
+        console.error(error);
+      });      
+    </script>
+  </body>
+</html>
