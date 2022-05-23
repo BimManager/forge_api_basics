@@ -44,10 +44,12 @@
       getAccessToken: function(onTokenReady) {
         fetch('http://localhost:3000/api/forge/auth/token')
           .then(function(response) {
-            response.json()
-              .then(function(token) {
-                onTokenReady(token.access_token, token.expires_in);
-              });
+            if (response.ok) {
+              response.json()
+                .then(function(token) {
+                  onTokenReady(token.access_token, token.expires_in);
+                });
+            }
           })
           .catch(function(error) {
             console.error(error);
@@ -76,6 +78,7 @@
     let dataVizExt;
     fetch('http://localhost:3000/api/forge/modelderivative/' + urn + '/manifest')
   .then((res) => {
+    if (!res.ok) { return { status: res.status, statusText: res.statusText }; }
     res.json().then((body) => {
       doc = new Autodesk.Viewing.Document(body, modelUrn);
       doc.downloadAecModelData();

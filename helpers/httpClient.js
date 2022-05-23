@@ -14,8 +14,8 @@ const https = require('https');
 const qs = require('querystring');
 
 function _makeHttpRequest(options, body = null) {
-//  console.log(options);
-  //if (body) console.log(body);
+  console.log(options);
+  if (body) console.log(body);
   return new Promise(function(resolve, reject) {
     const req = https.request(options, function(res) {
       let body = [];
